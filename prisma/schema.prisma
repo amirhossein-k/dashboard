@@ -1,0 +1,179 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  LOADING
+  DONE
+  SEE
+  POST
+}
+
+model OTP {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  phone     String
+  codeHash  String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+model User {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  password    String?
+  name        String?
+  phoneNumber String  @unique
+
+  products      Product[]        @relation("userPost")
+  isVerfied     Boolean          @default(false)
+  listordershop InvoiceProduct[] @relation("userPost")
+  address       Adress[]
+  admin         Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+}
+
+model InvoiceProduct {
+  id      String    @id @default(auto()) @map("_id") @db.ObjectId
+  order   Product[] @relation("poroductOrder") // اقلام سبد خرید
+  idOrder String
+
+  countOrder     Float
+  total          Float?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  variantId      String?     @db.ObjectId // کلید خارجی به واریانت (رنگ + موجودی)
+  variant        Variant?    @relation("invoiceVariant", fields: [variantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  quantity       Int         @default(1) // تعداد انتخاب‌شده
+  status         OrderStatus @default(LOADING)
+  InvoiceOwner   User?       @relation("userPost", fields: [InvoiceOwnerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  InvoiceOwnerId String?     @db.ObjectId // هر کاربر یک سبد خرید دارد
+}
+
+model Brand {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  name   String  @unique // نام برند، مثل "سامسونگ"
+  models Model[] @relation("brandOfModel") // رابطه با مدل‌ها 
+}
+
+model Model {
+  id       String    @id @default(auto()) @map("_id") @db.ObjectId
+  name     String // نام مدل، مثل "A56"
+  brandId  String?   @db.ObjectId // کلید خارجی به برند
+  brand    Brand?    @relation("brandOfModel", fields: [brandId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  variants Variant[] @relation("modelOfVariant") // رابطه با واریانت‌ها (رنگ + موجودی)
+}
+
+model Variant {
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  color           String // رنگ، مثل "قرمز"
+  inventory       Int // موجودی، مثل 10
+  modelId         String?          @db.ObjectId // کلید خارجی به مدل
+  model           Model?           @relation("modelOfVariant", fields: [modelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  invoices        InvoiceProduct[] @relation("invoiceVariant") // رابطه معکوس با InvoiceProduct
+  // 🔥 رابطه معکوس با ProductVariant
+  productVariants ProductVariant[]
+}
+
+model Adress {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  location String
+  state    String
+  zipcode  String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId   String @db.ObjectId
+}
+
+model Product {
+  id                  String           @id @default(auto()) @map("_id") @db.ObjectId
+  title               String
+  price               Float // قیمت اصلی تامین‌کننده
+  priceWithProfit     Float? // قیمت فروشگاه (با سود شما)
+  content             String?
+  tableContent        String?
+  count               Float
+  countproduct        Float
+  priceOffer          Float
+  listProperty        ListProperty[]
+  tags                String[]
+  review              ReviewList[]
+  productImage        ProductImage[]
+  // selectedVariantId   String?        @db.ObjectId // ← این خط را اضافه کنید
+  published           Boolean          @default(false)
+  author              User             @relation("userPost", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId            String           @db.ObjectId
+  categoryList        CategoryList[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  productOrderOwner   InvoiceProduct?  @relation("poroductOrder", fields: [productOrderOwnerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  productOrderOwnerId String?          @db.ObjectId
+  // 🔥 ارتباط با واریانت‌ها
+  productVariants     ProductVariant[]
+
+  supplier   Supplier? @relation("supplierProducts", fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplierId String?   @db.ObjectId
+}
+
+model Supplier {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  password  String
+  phone     String    @unique
+  address   String?
+  products  Product[] @relation("supplierProducts")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model ProductVariant {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  productId String  @db.ObjectId
+  variant   Variant @relation(fields: [variantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  variantId String  @db.ObjectId
+}
+
+model ListProperty {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  property    String
+  PropertyOwn Product @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId     String  @db.ObjectId
+}
+
+model ReviewList {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  reviewText String
+  name       String
+  email      String
+  rating     Float
+  createdAt  DateTime @default(now())
+  reviewOwn  Product  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId    String   @db.ObjectId
+}
+
+model CategoryList {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  category    String
+  CategoryOwn Product @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId     String  @db.ObjectId
+}
+
+model ProductImage {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  defaultImage Boolean
+  childImage   String
+  fileKey      String?
+  ImageOwn     Product? @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId      String?  @db.ObjectId
+  //   Products Products? @relation(fields: [productId],references: [id],onDelete: Cascade, onUpdate: Cascade) 
+  //   productId String?
+}
