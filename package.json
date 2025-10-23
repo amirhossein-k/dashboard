@@ -7,13 +7,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "reminder": "node src/scripts/daily-reminder.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/x-data-grid": "^8.10.2",
     "@prisma/client": "^6.13.0",
     "@rc-component/color-picker": "^3.0.1",
     "@reduxjs/toolkit": "^2.8.2",
     "@tanstack/react-query": "^5.85.0",
+    "@tanstack/react-table": "^8.21.3",
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.12",

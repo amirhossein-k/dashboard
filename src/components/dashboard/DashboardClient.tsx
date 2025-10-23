@@ -1,7 +1,10 @@
 "use client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProductVariant } from "@prisma/client";
+import { signOut } from "next-auth/react";
+import toast from "react-hot-toast";
+import OrdersListForSupplier from "./OrdersListForSupplier";
 // import { Product } from "@/types";
 
 interface Product {
@@ -27,6 +30,13 @@ export default function DashboardClient({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [products, setProducts] = useState<Product[]>(initialProducts);
 
+  const handleSignOut = async (e: React.MouseEvent) => {
+    try {
+      await signOut({ redirect: true, callbackUrl: "/" });
+    } catch (error) {
+      toast.error(`خطا در خروج ${error}`);
+    }
+  };
   const handleVariantChange = (
     productId: string,
     variantId: string,
@@ -86,7 +96,7 @@ export default function DashboardClient({
             transition={{ duration: 0.3 }}
             className="w-64 bg-gray-800 text-white flex flex-col p-4 space-y-4"
           >
-            {["dashboard", "list", "add"].map((tab) => (
+            {["dashboard", "list", "add", "orders"].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -98,6 +108,8 @@ export default function DashboardClient({
                   ? "داشبورد"
                   : tab === "list"
                   ? "لیست محصولات"
+                  : tab === "orders"
+                  ? "سفارشات"
                   : "اضافه کردن محصول"}
               </button>
             ))}
@@ -114,13 +126,21 @@ export default function DashboardClient({
           >
             {sidebarOpen ? "بستن منو" : "باز کردن منو"}
           </button>
+          <button
+            onClick={handleSignOut}
+            className="px-3 py-1 bg-red-800 text-white rounded-md hover:bg-red-700 cursor-pointer "
+          >
+            {sidebarOpen ? "خروج" : "در حال خروج..."}
+          </button>
           <h2 className="text-xl font-bold">
             {activeTab === "dashboard"
               ? "داشبورد"
               : activeTab === "list"
               ? "لیست محصولات"
+              : activeTab === "orders"
+              ? "سفارشات"
               : "اضافه کردن محصول"}
-          </h2>{" "}
+          </h2>
         </div>
 
         <div className="flex-1 overflow-auto p-6">
@@ -218,6 +238,17 @@ export default function DashboardClient({
                     اضافه کن
                   </button>
                 </form>
+              </motion.div>
+            )}
+
+            {activeTab === "orders" && (
+              <motion.div
+                key="orders"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <OrdersListForSupplier />
               </motion.div>
             )}
           </AnimatePresence>

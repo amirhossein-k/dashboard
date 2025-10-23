@@ -34,9 +34,9 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
 
 export function Sign() {
   const [showPassword, setShowPassword] = useState(false);
-  const [phone, setPhone] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -64,7 +64,7 @@ export function Sign() {
     mutationFn: async () => {
       const res = await signIn("supplier-login", {
         redirect: false,
-        phone,
+        phoneNumber,
         password,
       });
       if (!res?.ok) {
@@ -72,20 +72,25 @@ export function Sign() {
       }
       return res;
     },
-    onSuccess: () => {
-      toast.success("ورود موفق!");
-      router.push("/dashboard"); // مسیر بعد از لاگین
-    },
+    // onSuccess: () => {
+    //   toast.success("ورود موفق!");
+    //   router.push("/dashboard"); // مسیر بعد از لاگین
+    // },
     onError: (error: any) => {
       toast.error(error.message);
     },
   });
+  console.log(" register");
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    setIsLoading(true);
     loginMutation.mutate();
   };
+  useEffect(() => {
+    if (loginMutation.isSuccess) {
+      router.push("/dashboard");
+    }
+  }, [loginMutation.isSuccess, router]);
 
   return (
     <div className="min-h-screen w-screen bg-black relative overflow-hidden flex items-center justify-center">
@@ -425,8 +430,8 @@ export function Sign() {
                       <Input
                         type="text"
                         placeholder="شماره تلفن"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
                         onFocus={() => setFocusedInput("text" as any)}
                         onBlur={() => setFocusedInput(null)}
                         className="w-full bg-white/5 border-transparent focus:border-white/20 text-white placeholder:text-white/30 h-10 transition-all duration-300 pl-10 pr-3 focus:bg-white/10"
@@ -512,7 +517,7 @@ export function Sign() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   type="submit"
-                  disabled={isLoading}
+                  disabled={loginMutation.isPending}
                   className="w-full relative group/button mt-5"
                 >
                   {/* Button glow effect - reduced intensity */}
@@ -532,7 +537,7 @@ export function Sign() {
                         repeatDelay: 1,
                       }}
                       style={{
-                        opacity: isLoading ? 1 : 0,
+                        opacity: loginMutation.isPending ? 1 : 0,
                         transition: "opacity 0.3s ease",
                       }}
                     />
@@ -549,7 +554,7 @@ export function Sign() {
                           <div className="w-4 h-4 border-2 border-black/70 border-t-transparent rounded-full animate-spin" />
                         </motion.div>
                       ) : (
-                        <motion.span
+                        <motion.div
                           key="button-text"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
@@ -558,7 +563,7 @@ export function Sign() {
                         >
                           {loginMutation.isPending ? "در حال ورود..." : "ورود"}
                           <ArrowRight className="w-3 h-3 group-hover/button:translate-x-1 transition-transform duration-300" />
-                        </motion.span>
+                        </motion.div>
                       )}
                     </AnimatePresence>
                   </div>

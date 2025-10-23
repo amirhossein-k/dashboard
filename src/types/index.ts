@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client"
+
 export interface USERTYPE {
   id: string
   phoneNumber: string
@@ -9,7 +11,7 @@ export interface USERTYPE {
   listordershop: InvoiceProduct[];
   address: ADRESS[];
   admin: boolean
-
+  purchaseOrders: PurchaseOrder[]
 }
 
 export type InvoiceProduct = {
@@ -18,7 +20,7 @@ export type InvoiceProduct = {
   idOrder: string
   status: OrderStatus
   countOrder: number;
-  total: number;
+  total: number | null;
   odditemTotal: number;
 };
 export type OrderStatus = 'LOADING' | "SEE" | "POST" | "DONE";
@@ -42,17 +44,17 @@ export interface FormattedPostType extends Omit<Product, 'createdAt' | 'updatedA
 
 
 export interface Product {
-  quantity?: string
+  quantity?: string | null
   id: string
   content?: string | null
   title: string
   published: boolean
   price: number
-  priceWithProfit?: number
+  priceWithProfit?: number | null
   count: number
   countproduct: number
   priceOffer: number
-  author?: USERTYPE
+  author?: USERTYPE | null
   authorId: string
   createdAt: Date
   updatedAt: Date
@@ -61,20 +63,26 @@ export interface Product {
   review: Review[]
   tags: string[]
   // tableContent?: string; // اختیاری کردن tableContent
-  tableContent: string | null
-  supplierId?: string
-  supplier?: Supplier
+  tableContent?: string | null
+  supplierId?: string | null
+  supplier?: Supplier | null
+  productVariants: ProductVariant[]; // رابطه با ProductVariant
+  purchaseOrders: PurchaseOrder[]; // رابطه با PurchaseOrder
 }
 
 export interface Supplier {
   id: string
   name: string
   password: string
-  phone: string
+  phoneNumber: string
   address?: string
+  purchaseOrders: PurchaseOrder[]; // رابطه با PurchaseOrder
   products: Product[]
   createdAt: Date
   updatedAt: Date
+  lastReminderSent: string | null; // تغییر به string
+  reminderFrequency: string | null;
+  reminderTime: string | null;
 }
 export interface Review {
   reviewText: string
@@ -123,7 +131,26 @@ export interface actionsGetRes<T> {
   isLoading?: boolean;// اضافه کردن isLoading
 
 }
+export interface PurchaseOrder {
+  id: string;
+  productId: string;
+  supplierId: string;
+  storeOwnerId: string;
+  quantity: number;
+  totalPrice: number;
+  invoiceUrl: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface ProductVariant {
+  id: string;
+  productId: string;
+  variantId: string;
+}
 
+// types.ts
+export type PublicSupplier = Omit<Supplier, "password">;
 
 // export interface Variant{
 //   id:string
@@ -144,3 +171,17 @@ export interface actionsGetRes<T> {
 //   name: string
 //   models:Model[]
 // }
+
+
+export type FullPurchaseOrder = Prisma.PurchaseOrderGetPayload<{
+  include: {
+    items: {
+      include: {
+        product: {
+          include: { supplier: true };
+        };
+      };
+    };
+    storeOwner: true;
+  };
+}>;

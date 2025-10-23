@@ -20,6 +20,19 @@ enum OrderStatus {
   POST
 }
 
+enum PurchaseOrderStatus {
+  LOADING // هنوز در سبد خرید است و پول پرداخت نشده
+  LOADINGPAID ///منتفل شده به صفحه پرداخت
+  PENDING // در انتظار تایید تامین‌کننده
+  CONFIRMED // تایید شده توسط تامین‌کننده (منتظر پرداخت)
+  PAID // پرداخت شده (رسید آپلود شده) - توسط مدیر سایت پول تامین کننده پرداخت میشود
+  SHIPPED_BY_SUPPLIER // ارسال شده توسط تامین‌کننده
+  DELIVERED_TO_STORE // تحویل به فروشگاه
+  SHIPPED_TO_CUSTOMER // ارسال شده برای مشتری نهایی
+  COMPLETED // تکمیل شده (تحویل به مشتری نهایی)
+  CANCELLED // لغو شده
+}
+
 model OTP {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   phone     String
@@ -29,23 +42,23 @@ model OTP {
 }
 
 model User {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
-  password    String?
-  name        String?
-  phoneNumber String  @unique
-
-  products      Product[]        @relation("userPost")
-  isVerfied     Boolean          @default(false)
-  listordershop InvoiceProduct[] @relation("userPost")
-  address       Adress[]
-  admin         Boolean          @default(false)
-  createdAt     DateTime         @default(now())
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  password       String?
+  name           String?
+  phoneNumber    String           @unique
+  purchaseOrders PurchaseOrder[]  @relation("userPurchaseOrders")
+  products       Product[]        @relation("userPost")
+  isVerfied      Boolean          @default(false)
+  listordershop  InvoiceProduct[] @relation("userPost")
+  address        Adress[]
+  admin          Boolean          @default(false)
+  createdAt      DateTime         @default(now())
 }
 
 model InvoiceProduct {
-  id      String    @id @default(auto()) @map("_id") @db.ObjectId
-  order   Product[] @relation("poroductOrder") // اقلام سبد خرید
-  idOrder String
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  // order   Product[] @relation("poroductOrder") // اقلام سبد خرید
+  // idOrder String
 
   countOrder     Float
   total          Float?
@@ -84,6 +97,16 @@ model Variant {
   productVariants ProductVariant[]
 }
 
+model Colors {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  color       String ///قرمز
+  inventory   Int // موجودی، مثل 10
+  model       String ///مقلا سایز 12  / عروسک/ a56
+  parentModel String? //مثلا دسته بالا تر ان مثلا خونه / 
+  product     Product @relation("colors", fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  productId   String  @db.ObjectId
+}
+
 model Adress {
   id       String @id @default(auto()) @map("_id") @db.ObjectId
   location String
@@ -94,44 +117,93 @@ model Adress {
 }
 
 model Product {
-  id                  String           @id @default(auto()) @map("_id") @db.ObjectId
-  title               String
-  price               Float // قیمت اصلی تامین‌کننده
-  priceWithProfit     Float? // قیمت فروشگاه (با سود شما)
-  content             String?
-  tableContent        String?
-  count               Float
-  countproduct        Float
-  priceOffer          Float
-  listProperty        ListProperty[]
-  tags                String[]
-  review              ReviewList[]
-  productImage        ProductImage[]
+  id                 String              @id @default(auto()) @map("_id") @db.ObjectId
+  title              String
+  price              Float // قیمت اصلی تامین‌کننده
+  priceWithProfit    Float? // قیمت فروشگاه (با سود شما)
+  content            String?
+  tableContent       String?
+  count              Float
+  countproduct       Float //مقدار کل موجودی
+  priceOffer         Float?
+  listProperty       ListProperty[]
+  tags               String[]
+  colors             Colors[]            @relation("colors")
+  review             ReviewList[]
+  productImage       ProductImage[]
   // selectedVariantId   String?        @db.ObjectId // ← این خط را اضافه کنید
-  published           Boolean          @default(false)
-  author              User             @relation("userPost", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  authorId            String           @db.ObjectId
-  categoryList        CategoryList[]
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  productOrderOwner   InvoiceProduct?  @relation("poroductOrder", fields: [productOrderOwnerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  productOrderOwnerId String?          @db.ObjectId
+  published          Boolean             @default(false)
+  author             User                @relation("userPost", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId           String              @db.ObjectId
+  categoryList       CategoryList[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  // productOrderOwner     InvoiceProduct?  @relation("poroductOrder", fields: [productOrderOwnerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // productOrderOwnerId   String?          @db.ObjectId
   // 🔥 ارتباط با واریانت‌ها
-  productVariants     ProductVariant[]
+  productVariants    ProductVariant[]
+  purchaseOrderItems PurchaseOrderItem[]
 
-  supplier   Supplier? @relation("supplierProducts", fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  supplierId String?   @db.ObjectId
+  lastUpdatedBySupplier DateTime?
+  supplier              Supplier? @relation("supplierProducts", fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplierId            String?   @db.ObjectId
+
+  discountDaysLeft Float?
+  discountEndDate  DateTime?
 }
 
 model Supplier {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  name      String
-  password  String
-  phone     String    @unique
-  address   String?
-  products  Product[] @relation("supplierProducts")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  password          String
+  phoneNumber       String    @unique
+  address           String?
+  products          Product[] @relation("supplierProducts")
+  // purchaseOrders    PurchaseOrder[] @relation("supplierPurchaseOrders")
+  lastReminderSent  DateTime?
+  reminderFrequency String? // daily, weekly
+  reminderTime      String? // HH:MM format
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // PurchaseOrderId      String   @db.ObjectId //ایدی هر سفارش 
+  // PurchaseOrder        PurchaseOrder  @relation("supplierPurchaseOrders", fields: [PurchaseOrderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model PurchaseOrder {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  items           PurchaseOrderItem[]
+  // supplier Supplier[]    @relation("supplierPurchaseOrders") //لیست تامین کننده هر سفارش 
+  // supplierId      String   @db.ObjectId ///ایدی تامین کننده
+  // supplier        Supplier @relation("supplierPurchaseOrders", fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  storeOwnerId    String              @db.ObjectId ///ایدی خریدار
+  storeOwner      User                @relation("userPurchaseOrders", fields: [storeOwnerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // quantity        Float
+  // colorsSelect    String //هر کابر ایدی دارد برای هر محصول
+  totalPrice      Float
+  invoiceUrl      String? // URL فاکتور بارگذاری شده
+  trackingCode    String? // کد رهگیری پستی برای مشتری نهایی
+  supplierNotes   String? // یادداشت‌های تامین‌کننده
+  storeOwnerNotes String? // یادداشت‌های مدیر فروشگاه
+
+  status PurchaseOrderStatus @default(LOADING) // استفاده از Enum برای وضعیت
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PurchaseOrderItem {
+  id      String        @id @default(auto()) @map("_id") @db.ObjectId
+  orderId String        @db.ObjectId
+  order   PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  productId String  @db.ObjectId
+
+  quantity     Int     @default(1)
+  colorsSelect String?
+  unitPrice    Float
+  totalPrice   Float
 }
 
 model ProductVariant {
