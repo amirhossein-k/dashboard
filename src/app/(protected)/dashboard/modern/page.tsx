@@ -342,9 +342,7 @@ export default function ModernDashboardPage() {
             <ModernCard className="mb-8">
               <div className="p-6 border-b border-gray-100">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-800">
-                    آخرین سفارشات
-                  </h2>
+                  <h2 className="text-xl font-bold text-gray-800">محصولات</h2>
                   <div className="flex items-center space-x-2">
                     <button className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50">
                       <Filter className="h-4 w-4" />

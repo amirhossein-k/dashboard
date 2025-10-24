@@ -5,10 +5,10 @@ import { db as prisma } from '@/app/lib/db'
 import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
 
-export async function loginSupplier({ phone, password }: { phone: string; password: string }) {
+export async function loginSupplier({ phone: phoneNumber, password }: { phone: string; password: string }) {
 
 
-    const supplier = await prisma.supplier.findUnique({ where: { phone } });
+    const supplier = await prisma.supplier.findUnique({ where: { phoneNumber } });
     if (!supplier) throw new Error("تأمین‌کننده یافت نشد");
 
     const isValid = await bcrypt.compare(password, supplier.password);

@@ -41,11 +41,11 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL("/register", request.url));
         } else {
             if (token.supplier) {
-                if (pathname !== "/dashboard") {
+                if (!pathname.startsWith("/dashboard")) {
                     return NextResponse.redirect(new URL("/dashboard", request.url));
                 }
             } else if (token.user?.admin) {
-                if (pathname !== "/dashboard/modern") {
+                if (!pathname.startsWith("/dashboard/modern")) {
                     return NextResponse.redirect(new URL("/dashboard/modern", request.url));
                 }
             }

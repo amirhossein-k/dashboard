@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { useSession } from "next-auth/react"; // ← اضافه کن
-
+import { useSession } from "next-auth/react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Package, Eye, Clock, CheckCircle, XCircle } from "lucide-react";
 import { Prisma } from "@prisma/client";
+import Link from "next/link";
 
 type FullPurchaseOrder = Prisma.PurchaseOrderGetPayload<{
   include: {
@@ -24,7 +25,7 @@ interface PurchaseOrdersListProps {
   userId: string;
   userType: "store_owner" | "supplier";
 }
-// تمام وضعیت‌های سبد خرید طبق enum
+
 const STATUS_OPTIONS = [
   { value: "all", label: "همه وضعیت‌ها" },
   { value: "loading", label: "در حال آماده‌سازی (پرداخت‌نشده)" },
@@ -44,35 +45,52 @@ export default function PurchaseOrdersList({
   userType,
 }: PurchaseOrdersListProps) {
   const { data: session, status } = useSession();
-  const [orders, setOrders] = useState<FullPurchaseOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<string>("all");
 
-  // تعیین نوع کاربر
-  // فقط مدیر سایت می‌تواند ببیند
   const isAdmin = session?.user?.admin === true;
 
-  useEffect(() => {
-    if (status === "authenticated" && isAdmin) {
-      fetchOrders();
-    }
-  }, [status, isAdmin]);
-
-  const fetchOrders = async () => {
-    try {
-      const response = await fetch(`/api/purchase-orders`);
-      if (response.ok) {
-        const data = await response.json();
-        setOrders(data);
-      } else {
-        console.error("Failed to fetch orders:", await response.text());
-      }
-    } catch (error) {
-      console.error("Error fetching purchase orders:", error);
-    } finally {
-      setLoading(false);
-    }
+  // 🔹 تعریف تابع گرفتن سفارشات
+  const fetchOrders = async (): Promise<FullPurchaseOrder[]> => {
+    const response = await fetch(`/api/purchase-orders`);
+    if (!response.ok) throw new Error("Failed to fetch purchase orders");
+    return response.json();
   };
+
+  // 🔹 گرفتن داده‌ها با useQuery
+  const {
+    data: orders = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery<FullPurchaseOrder[]>({
+    queryKey: ["purchase-orders"],
+    queryFn: fetchOrders,
+    enabled: status === "authenticated" && isAdmin, // فقط زمانی که کاربر مدیر است
+  });
+
+  // 🔹 به‌روزرسانی وضعیت سفارش
+  const mutation = useMutation({
+    mutationFn: async ({
+      orderId,
+      newStatus,
+    }: {
+      orderId: string;
+      newStatus: string;
+    }) => {
+      const response = await fetch(`/api/purchase-orders/${orderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!response.ok) throw new Error("Failed to update status");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+    },
+  });
+
   if (status === "loading")
     return <div className="p-10 text-center">در حال بررسی ورود...</div>;
 
@@ -83,18 +101,20 @@ export default function PurchaseOrdersList({
       </div>
     );
   }
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
-    try {
-      const response = await fetch(`/api/purchase-orders/${orderId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (response.ok) fetchOrders();
-    } catch (error) {
-      console.error("Error updating order status:", error);
-    }
-  };
+
+  if (isLoading)
+    return <div className="p-10 text-center">در حال بارگذاری سفارش‌ها...</div>;
+
+  if (isError)
+    return (
+      <div className="p-10 text-center text-red-500">
+        خطا در دریافت اطلاعات: {(error as Error).message}
+      </div>
+    );
+
+  const filteredOrders = orders.filter((order) =>
+    filter === "all" ? true : order.status.toLowerCase() === filter
+  );
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -127,62 +147,26 @@ export default function PurchaseOrdersList({
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "pending":
-        return "در انتظار";
-      case "confirmed":
-        return "تایید شده";
-      case "delivered":
-        return "تحویل داده شده";
-      case "cancelled":
-        return "لغو شده";
-      default:
-        return status;
-    }
-  };
-
-  console.log(orders, "orders سفارااشات");
-  const filteredOrders = orders.filter((order) =>
-    filter === "all" ? true : order.status.toLowerCase() === filter
-  );
-
-  if (loading)
-    return <div className="p-10 text-center">در حال بارگذاری سفارش‌ها...</div>;
-  if (orders.length === 0)
-    return (
-      <div className="p-10 text-center text-gray-500">
-        هیچ سفارشی وجود ندارد.
-      </div>
-    );
-
   return (
     <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
       <div className="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-800">
           {userType === "store_owner" ? "سفارشات خرید شما" : "سفارشات دریافتی"}
         </h2>
-        <div className="flex space-x-2 items-center">
-          {/* {["all", "pending", "confirmed", "delivered"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                filter === f
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {
-                {
-                  all: "همه",
-                  pending: "در انتظار",
-                  confirmed: "تایید شده",
-                  delivered: "تحویل شده",
-                }[f]
-              }
-            </button>
-          ))} */}
+
+        <div className="flex space-x-2 items-center relative">
+          <div className="group cursor-pointer hover:bg-blue-500 w-[100px]">
+            <span>راهنما</span>
+            <ul className="group-hover:flex absolute top-0 flex-col overflow-y-auto bg-sky-300 hidden gap-1 h-[100px]">
+              {STATUS_OPTIONS.map((item, index) => (
+                <li className="bg-[#fff] border rounded-md" key={item.label}>
+                  {index} - {item.label} :
+                  <span className="text-red-600">{item.value}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <label htmlFor="statusFilter" className="text-sm text-gray-600">
             فیلتر بر اساس وضعیت:
           </label>
@@ -214,16 +198,19 @@ export default function PurchaseOrdersList({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="p-6 hover:bg-gray-200 transition-colors flex flex-col gap-2 w-full "
+              className="p-6 hover:bg-gray-200 transition-colors flex flex-col gap-2 w-full"
             >
-              <div className="flex items-center justify-between w-full">
+              <Link
+                href={`/dashboard/modern/${order.id}`}
+                className="flex items-center justify-between w-full"
+              >
                 <div className="flex-1">
                   <div className="flex flex-row-reverse items-center p-1 mb-2 bg-[#c8e9f3] rounded-md">
                     <h3
-                      className="text-lg font-semibold text-gray-800 ml-3 "
+                      className="text-lg font-semibold text-gray-800 ml-3"
                       dir="rtl"
                     >
-                      خریدار: {order.storeOwner.name ?? "خریدار"}- شماره:{" "}
+                      خریدار: {order.storeOwner.name ?? "خریدار"} - شماره:{" "}
                       {order.storeOwner.phoneNumber}
                     </h3>
                     <span
@@ -232,10 +219,7 @@ export default function PurchaseOrdersList({
                       )}`}
                     >
                       {getStatusIcon(order.status)}
-                      <span className="mr-1">
-                        {/* {getStatusText(order.status)} */}
-                        {order.status}
-                      </span>
+                      <span className="mr-1">{order.status}</span>
                     </span>
                   </div>
 
@@ -252,7 +236,7 @@ export default function PurchaseOrdersList({
                       </p>
                     </div>
                     <div>
-                      <p className="font-medium"> تعداد محصولات سفارش</p>
+                      <p className="font-medium">تعداد محصولات سفارش</p>
                       <p>{order.items?.length ?? "-"}</p>
                     </div>
                     <div>
@@ -267,64 +251,7 @@ export default function PurchaseOrdersList({
                     </div>
                   </div>
                 </div>
-                {/* اگر رسید دارد */}
-
-                <div className="flex items-center space-x-2 mr-4">
-                  {order.invoiceUrl && (
-                    <button
-                      onClick={() =>
-                        window.open(order.invoiceUrl ?? "", "_blank")
-                      }
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="مشاهده فاکتور"
-                    >
-                      <Eye className="h-5 w-5" />
-                    </button>
-                  )}
-
-                  {userType === "supplier" &&
-                    order.status.toLowerCase() === "pending" && (
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() =>
-                            updateOrderStatus(order.id, "CONFIRMED")
-                          }
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          تایید
-                        </button>
-                        <button
-                          onClick={() =>
-                            updateOrderStatus(order.id, "CANCELLED")
-                          }
-                          className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
-                        >
-                          لغو
-                        </button>
-                      </div>
-                    )}
-
-                  {userType === "supplier" &&
-                    order.status.toLowerCase() === "confirmed" && (
-                      <button
-                        onClick={() => updateOrderStatus(order.id, "DELIVERED")}
-                        className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        تحویل شد
-                      </button>
-                    )}
-                </div>
-              </div>
-
-              {order.status.toLowerCase() === "pending" && (
-                <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
-                  <p className="text-yellow-800 text-sm">
-                    {userType === "store_owner"
-                      ? "سفارش شما در انتظار تایید تامین‌کننده است"
-                      : "این سفارش نیاز به تایید شما دارد"}
-                  </p>
-                </div>
-              )}
+              </Link>
             </motion.div>
           ))
         )}
